@@ -2,7 +2,7 @@
 
 > An interactive, visual reference for **26 core DSA patterns** mapped to **200+ LeetCode problems** — built to help you study smarter, not harder.
 
-🔗 **[Live Demo →](https://yourusername.github.io/dsa-patterns-map)**
+🔗 **[Live Demo →](https://ponnuri-bhavani-dhanush.github.io/dsa-patterns-mindmap)**
 
 ---
 
