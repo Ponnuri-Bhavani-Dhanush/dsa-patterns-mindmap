@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSA Patterns Mind Map</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f1117; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; }
+
+  #map-container { flex: 1; position: relative; overflow: hidden; }
+
+  #controls {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 100; background: #1a1d27;
+    padding: 8px 16px; border-radius: 32px; border: 1px solid #2d3148;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  #controls button {
+    background: #2d3148; color: #a0a8d0; border: none; padding: 6px 14px;
+    border-radius: 20px; cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  #controls button:hover { background: #3d4268; color: #fff; }
+  #controls span { color: #5a6080; font-size: 12px; display: flex; align-items: center; padding: 0 4px; }
+
+  #legend {
+    position: fixed; bottom: 16px; left: 16px; z-index: 100;
+    background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px;
+    padding: 12px 16px;
+  }
+  #legend h4 { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 12px; color: #a0a8d0; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  #priority-legend {
+    position: fixed; bottom: 16px; left: 180px; z-index: 100;
+    background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px;
+    padding: 12px 16px;
+  }
+  #priority-legend h4 { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: #1a1d27; border: 1px solid #3d4268;
+    border-radius: 10px; padding: 10px 14px; max-width: 260px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: none;
+  }
+  #tooltip h3 { color: #e2e8f0; font-size: 13px; margin-bottom: 4px; }
+  #tooltip .tip-def { color: #94a3b8; font-size: 11px; line-height: 1.4; }
+  #tooltip .tip-hint { color: #6b7280; font-size: 10px; margin-top: 6px; font-style: italic; }
+
+  /* SIDE PANEL */
+  #side-panel {
+    width: 0; min-width: 0; overflow: hidden;
+    background: #13151f; border-left: 1px solid #1e2235;
+    transition: width 0.35s cubic-bezier(0.16,1,0.3,1), min-width 0.35s cubic-bezier(0.16,1,0.3,1);
+    display: flex; flex-direction: column; position: relative; z-index: 50;
+  }
+  #side-panel.open { width: 400px; min-width: 400px; }
+
+  #panel-header {
+    padding: 20px 20px 16px; border-bottom: 1px solid #1e2235; flex-shrink: 0;
+  }
+  #panel-close {
+    position: absolute; top: 16px; right: 16px;
+    background: #2d3148; border: none; color: #a0a8d0; width: 28px; height: 28px;
+    border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  #panel-close:hover { background: #3d4268; color: #fff; }
+  #panel-pattern-name { color: #e2e8f0; font-size: 17px; font-weight: 700; margin-bottom: 6px; padding-right: 36px; }
+  #panel-def { color: #94a3b8; font-size: 12.5px; line-height: 1.5; margin-bottom: 10px; }
+  #panel-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #panel-priority { font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
+  #panel-week { color: #6b7280; font-size: 11px; }
+
+  #panel-body { flex: 1; overflow-y: auto; padding: 0 20px 20px; }
+  #panel-body::-webkit-scrollbar { width: 5px; }
+  #panel-body::-webkit-scrollbar-track { background: #13151f; }
+  #panel-body::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+
+  .panel-section { margin-top: 18px; }
+  .panel-section-title {
+    color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+  }
+  .panel-section-title::after { content: ''; flex: 1; height: 1px; background: #1e2235; }
+
+  /* Triggers */
+  .triggers-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .trigger-pill {
+    background: #1e2235; color: #a0c4ff; font-size: 11px;
+    padding: 3px 10px; border-radius: 10px; border: 1px solid #2d3148;
+  }
+
+  /* LeetCode Problems */
+  .lc-problem {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px; margin-bottom: 5px;
+    background: #1a1d27; border: 1px solid #1e2235;
+    text-decoration: none; transition: all 0.18s; cursor: pointer;
+  }
+  .lc-problem:hover { background: #202436; border-color: #3d4268; transform: translateX(3px); }
+  .lc-num { color: #6b7280; font-size: 11px; width: 32px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .lc-name { color: #c8d0e8; font-size: 12.5px; flex: 1; }
+  .lc-diff {
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 8px; flex-shrink: 0;
+  }
+  .diff-easy { background: rgba(52,211,153,0.15); color: #34d399; }
+  .diff-medium { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .diff-hard { background: rgba(248,113,113,0.15); color: #f87171; }
+
+  /* Mistake */
+  .mistake-box {
+    background: rgba(248,113,113,0.08); border-radius: 8px;
+    border-left: 3px solid #f87171; padding: 10px 12px; margin-top: 4px;
+    color: #f87171; font-size: 11.5px; line-height: 1.5;
+  }
+  .mistake-box span { color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+
+  svg { cursor: grab; }
+  svg:active { cursor: grabbing; }
+
+  .node circle { stroke-width: 2; transition: r 0.2s, filter 0.2s; cursor: pointer; }
+  .node circle:hover { filter: brightness(1.4); }
+  .node text { font-size: 12px; fill: #e2e8f0; cursor: pointer; pointer-events: none; font-family: 'Segoe UI', sans-serif; }
+  .node.selected circle { filter: brightness(1.6) drop-shadow(0 0 6px currentColor); }
+
+  .link { fill: none; stroke-opacity: 0.35; stroke-width: 1.5; }
+
+  #info { position: fixed; top: 16px; right: 16px; color: #4a5280; font-size: 11px; text-align: right; z-index: 100; }
+
+  #credit {
+    position: fixed; bottom: 16px; right: 16px; z-index: 100;
+    color: #6b7280; font-size: 11px;
+    display: flex; align-items: center; gap: 6px;
+    background: #1a1d27; padding: 6px 12px; border-radius: 20px;
+    border: 1px solid #2d3148;
+    text-decoration: none; transition: all 0.2s;
+  }
+  #credit:hover { color: #c084fc; border-color: #c084fc55; background: #1e1a2e; }
+  #credit svg { flex-shrink: 0; }
+
+  #panel-hint {
+    position: fixed; bottom: 52px; right: 16px; z-index: 100;
+    color: #4a5280; font-size: 11px; background: #1a1d27;
+    padding: 6px 12px; border-radius: 20px; border: 1px solid #2d3148;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- Fixed UI overlays — outside map-container so overflow:hidden never clips them -->
+<div id="controls">
+  <button onclick="resetZoom()">⊙ Reset</button>
+  <button onclick="expandAll()">⊞ Expand All</button>
+  <button onclick="collapseAll()">⊟ Collapse All</button>
+  <span>Scroll to zoom · Drag to pan · Click nodes to expand · Click pattern for problems</span>
+</div>
+
+<div id="legend">
+  <h4>Pattern Groups</h4>
+  <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div> Linear / Pointer</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div> Data Access / Query</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> Problem Solving</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Graph / Tree</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c084fc"></div> String / Geometric</div>
+</div>
+
+<div id="priority-legend">
+  <h4>Priority</h4>
+  <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div> Must-Know</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div> Important</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> Advanced</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div> Skip</div>
+</div>
+
+<div id="tooltip"></div>
+<div id="info">DSA Mind Map · 26 Patterns</div>
+<div id="panel-hint">← Click a pattern node to view problems</div>
+<a id="credit" href="https://www.instagram.com/override.void.dhanush" target="_blank" rel="noopener noreferrer">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+  </svg>
+  Created by @override.void.dhanush
+</a>
+
+<div id="map-container">
+  <svg id="svg"></svg>
+</div>
+
+<div id="side-panel">
+  <div id="panel-header">
+    <button id="panel-close" onclick="closePanel()">✕</button>
+    <div id="panel-pattern-name">—</div>
+    <div id="panel-def">—</div>
+    <div id="panel-meta">
+      <span id="panel-priority"></span>
+      <span id="panel-week"></span>
+    </div>
+  </div>
+  <div id="panel-body">
+    <div class="panel-section">
+      <div class="panel-section-title">Triggers / When to use</div>
+      <div class="triggers-wrap" id="panel-triggers"></div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">LeetCode Problems</div>
+      <div id="panel-problems"></div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Common Mistake</div>
+      <div class="mistake-box" id="panel-mistake"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Full problem data with LC numbers and difficulty ────────────────────────
+const lcData = {
+  "Two Pointers": [
+    { num: 167, name: "Two Sum II - Input Array Is Sorted", diff: "Easy" },
+    { num: 125, name: "Valid Palindrome", diff: "Easy" },
+    { num: 680, name: "Valid Palindrome II", diff: "Easy" },
+    { num: 11,  name: "Container With Most Water", diff: "Medium" },
+    { num: 15,  name: "3Sum", diff: "Medium" },
+    { num: 16,  name: "3Sum Closest", diff: "Medium" },
+    { num: 18,  name: "4Sum", diff: "Medium" },
+    { num: 26,  name: "Remove Duplicates from Sorted Array", diff: "Easy" },
+    { num: 27,  name: "Remove Element", diff: "Easy" },
+    { num: 42,  name: "Trapping Rain Water", diff: "Hard" }
+  ],
+  "Fast & Slow Pointers": [
+    { num: 141, name: "Linked List Cycle", diff: "Easy" },
+    { num: 876, name: "Middle of the Linked List", diff: "Easy" },
+    { num: 202, name: "Happy Number", diff: "Easy" },
+    { num: 142, name: "Linked List Cycle II", diff: "Medium" },
+    { num: 287, name: "Find the Duplicate Number", diff: "Medium" },
+    { num: 234, name: "Palindrome Linked List", diff: "Easy" },
+    { num: 457, name: "Circular Array Loop", diff: "Medium" },
+    { num: 19,  name: "Remove Nth Node From End of List", diff: "Medium" },
+    { num: 26,  name: "Remove Duplicates from Sorted Array", diff: "Easy" }
+  ],
+  "Sliding Window (Fixed)": [
+    { num: 643, name: "Maximum Average Subarray I", diff: "Easy" },
+    { num: 438, name: "Find All Anagrams in a String", diff: "Medium" },
+    { num: 567, name: "Permutation in String", diff: "Medium" },
+    { num: 2461, name: "Maximum Sum of Distinct Subarrays With Length K", diff: "Medium" },
+    { num: 239, name: "Sliding Window Maximum", diff: "Hard" },
+    { num: 30,  name: "Substring with Concatenation of All Words", diff: "Hard" },
+    { num: 1343, name: "Number of Sub-arrays of Size K and Avg ≥ Threshold", diff: "Medium" }
+  ],
+  "Sliding Window (Variable)": [
+    { num: 209, name: "Minimum Size Subarray Sum", diff: "Medium" },
+    { num: 3,   name: "Longest Substring Without Repeating Characters", diff: "Medium" },
+    { num: 424, name: "Longest Repeating Character Replacement", diff: "Medium" },
+    { num: 1004, name: "Max Consecutive Ones III", diff: "Medium" },
+    { num: 76,  name: "Minimum Window Substring", diff: "Hard" },
+    { num: 904, name: "Fruit Into Baskets", diff: "Medium" },
+    { num: 1358, name: "Number of Substrings Containing All Three Characters", diff: "Medium" },
+    { num: 992, name: "Subarrays with K Different Integers", diff: "Hard" }
+  ],
+  "Linked List Reversal": [
+    { num: 206, name: "Reverse Linked List", diff: "Easy" },
+    { num: 234, name: "Palindrome Linked List", diff: "Easy" },
+    { num: 92,  name: "Reverse Linked List II", diff: "Medium" },
+    { num: 24,  name: "Swap Nodes in Pairs", diff: "Medium" },
+    { num: 25,  name: "Reverse Nodes in k-Group", diff: "Hard" },
+    { num: 61,  name: "Rotate List", diff: "Medium" },
+    { num: 143, name: "Reorder List", diff: "Medium" }
+  ],
+  "Prefix Sum": [
+    { num: 303, name: "Range Sum Query - Immutable", diff: "Easy" },
+    { num: 560, name: "Subarray Sum Equals K", diff: "Medium" },
+    { num: 974, name: "Subarray Sums Divisible by K", diff: "Medium" },
+    { num: 525, name: "Contiguous Array", diff: "Medium" },
+    { num: 523, name: "Continuous Subarray Sum", diff: "Medium" },
+    { num: 238, name: "Product of Array Except Self", diff: "Medium" },
+    { num: 304, name: "Range Sum Query 2D - Immutable", diff: "Medium" },
+    { num: 1480, name: "Running Sum of 1d Array", diff: "Easy" }
+  ],
+  "Binary Search": [
+    { num: 704, name: "Binary Search", diff: "Easy" },
+    { num: 35,  name: "Search Insert Position", diff: "Easy" },
+    { num: 34,  name: "Find First and Last Position of Element", diff: "Medium" },
+    { num: 33,  name: "Search in Rotated Sorted Array", diff: "Medium" },
+    { num: 153, name: "Find Minimum in Rotated Sorted Array", diff: "Medium" },
+    { num: 875, name: "Koko Eating Bananas", diff: "Medium" },
+    { num: 1011, name: "Capacity To Ship Packages Within D Days", diff: "Medium" },
+    { num: 162, name: "Find Peak Element", diff: "Medium" },
+    { num: 4,   name: "Median of Two Sorted Arrays", diff: "Hard" },
+    { num: 410, name: "Split Array Largest Sum", diff: "Hard" }
+  ],
+  "Monotonic Stack": [
+    { num: 496, name: "Next Greater Element I", diff: "Easy" },
+    { num: 739, name: "Daily Temperatures", diff: "Medium" },
+    { num: 901, name: "Online Stock Span", diff: "Medium" },
+    { num: 503, name: "Next Greater Element II", diff: "Medium" },
+    { num: 456, name: "132 Pattern", diff: "Medium" },
+    { num: 2104, name: "Sum of Subarray Ranges", diff: "Medium" },
+    { num: 84,  name: "Largest Rectangle in Histogram", diff: "Hard" },
+    { num: 85,  name: "Maximal Rectangle", diff: "Hard" },
+    { num: 907, name: "Sum of Subarray Minimums", diff: "Medium" }
+  ],
+  "Monotonic Queue": [
+    { num: 1438, name: "Longest Subarray Abs Diff Limit", diff: "Medium" },
+    { num: 1696, name: "Jump Game VI", diff: "Medium" },
+    { num: 239, name: "Sliding Window Maximum", diff: "Hard" },
+    { num: 862, name: "Shortest Subarray with Sum at Least K", diff: "Hard" },
+    { num: 1499, name: "Max Value of Equation", diff: "Hard" },
+    { num: 918, name: "Maximum Sum Circular Subarray", diff: "Medium" }
+  ],
+  "Segment Tree": [
+    { num: 307, name: "Range Sum Query - Mutable", diff: "Medium" },
+    { num: 699, name: "Falling Squares", diff: "Hard" },
+    { num: 731, name: "My Calendar II", diff: "Medium" },
+    { num: 732, name: "My Calendar III", diff: "Hard" },
+    { num: 315, name: "Count of Smaller Numbers After Self", diff: "Hard" },
+    { num: 850, name: "Rectangle Area II", diff: "Hard" }
+  ],
+  "Fenwick Tree (BIT)": [
+    { num: 307, name: "Range Sum Query - Mutable", diff: "Medium" },
+    { num: 493, name: "Reverse Pairs", diff: "Hard" },
+    { num: 1649, name: "Create Sorted Array through Instructions", diff: "Hard" },
+    { num: 315, name: "Count of Smaller Numbers After Self", diff: "Hard" },
+    { num: 327, name: "Count of Range Sum", diff: "Hard" }
+  ],
+  "Sqrt Decomposition": [
+    { num: 307, name: "Range Sum Query - Mutable", diff: "Medium" },
+    { num: 901, name: "Online Stock Span", diff: "Medium" },
+    { num: 209, name: "Minimum Size Subarray Sum", diff: "Medium" }
+  ],
+  "Greedy": [
+    { num: 121, name: "Best Time to Buy and Sell Stock", diff: "Easy" },
+    { num: 55,  name: "Jump Game", diff: "Medium" },
+    { num: 45,  name: "Jump Game II", diff: "Medium" },
+    { num: 56,  name: "Merge Intervals", diff: "Medium" },
+    { num: 134, name: "Gas Station", diff: "Medium" },
+    { num: 135, name: "Candy", diff: "Hard" },
+    { num: 763, name: "Partition Labels", diff: "Medium" },
+    { num: 435, name: "Non-overlapping Intervals", diff: "Medium" },
+    { num: 621, name: "Task Scheduler", diff: "Medium" },
+    { num: 406, name: "Queue Reconstruction by Height", diff: "Medium" }
+  ],
+  "Dynamic Programming": [
+    { num: 70,   name: "Climbing Stairs", diff: "Easy" },
+    { num: 322,  name: "Coin Change", diff: "Medium" },
+    { num: 300,  name: "Longest Increasing Subsequence", diff: "Medium" },
+    { num: 62,   name: "Unique Paths", diff: "Medium" },
+    { num: 1143, name: "Longest Common Subsequence", diff: "Medium" },
+    { num: 416,  name: "Partition Equal Subset Sum", diff: "Medium" },
+    { num: 198,  name: "House Robber", diff: "Medium" },
+    { num: 213,  name: "House Robber II", diff: "Medium" },
+    { num: 139,  name: "Word Break", diff: "Medium" },
+    { num: 309,  name: "Best Time to Buy and Sell Stock with Cooldown", diff: "Medium" },
+    { num: 72,   name: "Edit Distance", diff: "Medium" },
+    { num: 312,  name: "Burst Balloons", diff: "Hard" },
+    { num: 10,   name: "Regular Expression Matching", diff: "Hard" }
+  ],
+  "Backtracking": [
+    { num: 78,  name: "Subsets", diff: "Medium" },
+    { num: 46,  name: "Permutations", diff: "Medium" },
+    { num: 47,  name: "Permutations II", diff: "Medium" },
+    { num: 39,  name: "Combination Sum", diff: "Medium" },
+    { num: 40,  name: "Combination Sum II", diff: "Medium" },
+    { num: 79,  name: "Word Search", diff: "Medium" },
+    { num: 51,  name: "N-Queens", diff: "Hard" },
+    { num: 37,  name: "Sudoku Solver", diff: "Hard" },
+    { num: 131, name: "Palindrome Partitioning", diff: "Medium" },
+    { num: 93,  name: "Restore IP Addresses", diff: "Medium" }
+  ],
+  "Meet in the Middle": [
+    { num: 1,    name: "Two Sum", diff: "Easy" },
+    { num: 805,  name: "Split Array With Same Average", diff: "Hard" },
+    { num: 2035, name: "Partition Array Into Two Equal Sum Subsets", diff: "Hard" },
+    { num: 18,   name: "4Sum", diff: "Medium" }
+  ],
+  "Bit Manipulation": [
+    { num: 136, name: "Single Number", diff: "Easy" },
+    { num: 191, name: "Number of 1 Bits", diff: "Easy" },
+    { num: 338, name: "Counting Bits", diff: "Easy" },
+    { num: 190, name: "Reverse Bits", diff: "Easy" },
+    { num: 268, name: "Missing Number", diff: "Easy" },
+    { num: 260, name: "Single Number III", diff: "Medium" },
+    { num: 201, name: "Bitwise AND of Numbers Range", diff: "Medium" },
+    { num: 371, name: "Sum of Two Integers", diff: "Medium" },
+    { num: 421, name: "Maximum XOR of Two Numbers in an Array", diff: "Medium" },
+    { num: 477, name: "Total Hamming Distance", diff: "Medium" }
+  ],
+  "Union-Find (DSU)": [
+    { num: 547,  name: "Number of Provinces", diff: "Medium" },
+    { num: 684,  name: "Redundant Connection", diff: "Medium" },
+    { num: 200,  name: "Number of Islands", diff: "Medium" },
+    { num: 128,  name: "Longest Consecutive Sequence", diff: "Medium" },
+    { num: 721,  name: "Accounts Merge", diff: "Medium" },
+    { num: 1319, name: "Number of Operations to Make Network Connected", diff: "Medium" },
+    { num: 839,  name: "Similar String Groups", diff: "Hard" },
+    { num: 952,  name: "Largest Component Size by Common Factor", diff: "Hard" }
+  ],
+  "Topological Sort": [
+    { num: 207, name: "Course Schedule", diff: "Medium" },
+    { num: 210, name: "Course Schedule II", diff: "Medium" },
+    { num: 269, name: "Alien Dictionary", diff: "Hard" },
+    { num: 444, name: "Sequence Reconstruction", diff: "Medium" },
+    { num: 310, name: "Minimum Height Trees", diff: "Medium" },
+    { num: 329, name: "Longest Increasing Path in a Matrix", diff: "Hard" },
+    { num: 851, name: "Loud and Rich", diff: "Medium" },
+    { num: 802, name: "Find Eventual Safe States", diff: "Medium" }
+  ],
+  "Successor Graphs": [
+    { num: 141, name: "Linked List Cycle", diff: "Easy" },
+    { num: 287, name: "Find the Duplicate Number", diff: "Medium" },
+    { num: 565, name: "Array Nesting", diff: "Medium" },
+    { num: 1483, name: "Kth Ancestor of a Tree Node", diff: "Hard" }
+  ],
+  "Max Flow / Min Cut": [
+    { num: 1349, name: "Maximum Students Taking Exam", diff: "Hard" },
+    { num: 127,  name: "Word Ladder", diff: "Hard" },
+    { num: 126,  name: "Word Ladder II", diff: "Hard" }
+  ],
+  "SCC (Kosaraju's)": [
+    { num: 207,  name: "Course Schedule", diff: "Medium" },
+    { num: 1192, name: "Critical Connections in a Network", diff: "Hard" },
+    { num: 210,  name: "Course Schedule II", diff: "Medium" },
+    { num: 1557, name: "Minimum Number of Vertices to Reach All Nodes", diff: "Medium" }
+  ],
+  "String Hashing": [
+    { num: 1062, name: "Longest Repeating Substring", diff: "Medium" },
+    { num: 1316, name: "Distinct Echo Substrings", diff: "Hard" },
+    { num: 187,  name: "Repeated DNA Sequences", diff: "Medium" },
+    { num: 214,  name: "Shortest Palindrome", diff: "Hard" },
+    { num: 1923, name: "Longest Common Subpath", diff: "Hard" },
+    { num: 1044, name: "Longest Duplicate Substring", diff: "Hard" }
+  ],
+  "Trie (Prefix Tree)": [
+    { num: 208, name: "Implement Trie (Prefix Tree)", diff: "Medium" },
+    { num: 212, name: "Word Search II", diff: "Hard" },
+    { num: 648, name: "Replace Words", diff: "Medium" },
+    { num: 211, name: "Design Add and Search Words Data Structure", diff: "Medium" },
+    { num: 720, name: "Longest Word in Dictionary", diff: "Medium" },
+    { num: 421, name: "Maximum XOR of Two Numbers in an Array", diff: "Medium" },
+    { num: 677, name: "Map Sum Pairs", diff: "Medium" },
+    { num: 336, name: "Palindrome Pairs", diff: "Hard" }
+  ],
+  "Sweep Line": [
+    { num: 56,  name: "Merge Intervals", diff: "Medium" },
+    { num: 218, name: "The Skyline Problem", diff: "Hard" },
+    { num: 850, name: "Rectangle Area II", diff: "Hard" },
+    { num: 715, name: "Range Module", diff: "Hard" },
+    { num: 253, name: "Meeting Rooms II", diff: "Medium" },
+    { num: 759, name: "Employee Free Time", diff: "Hard" }
+  ],
+  "Z-Algo / Suffix Array": [
+    { num: 28,   name: "Find the Index of the First Occurrence in a String", diff: "Easy" },
+    { num: 1392, name: "Longest Happy Prefix", diff: "Hard" },
+    { num: 1163, name: "Last Substring in Lexicographical Order", diff: "Hard" },
+    { num: 1044, name: "Longest Duplicate Substring", diff: "Hard" }
+  ]
+};
+
+// ─── Mind map data ────────────────────────────────────────────────────────────
+const data = {
+  name: "DSA Patterns", type: "root",
+  children: [
+    {
+      name: "Linear / Pointer", type: "group", color: "#60a5fa",
+      children: [
+        { name: "Two Pointers", type: "pattern", priority: "Must-Know", week: 1, problems: 20,
+          def: "Two indices traversing a linear structure to optimize from O(N²) to O(N).",
+          triggers: ["Sorted array","Pair sum","Triplets","Palindrome"],
+          mistake: "Off-by-one errors when deciding whether pointers should meet or cross." },
+        { name: "Fast & Slow Pointers", type: "pattern", priority: "Must-Know", week: 2, problems: 10,
+          def: "Two pointers at different speeds to detect cycles or find relative positions.",
+          triggers: ["Linked list cycle","Middle of list","Happy number","Cyclic path"],
+          mistake: "Failing to check if fast pointer or fast.next is null before advancing two steps." },
+        { name: "Sliding Window (Fixed)", type: "pattern", priority: "Must-Know", week: 1, problems: 12,
+          def: "Maintains a contiguous window of constant size K across a structure.",
+          triggers: ["Subarray of size K","Max average","Fixed range","Consecutive elements"],
+          mistake: "Forgetting to remove the state of the leftmost element leaving the window." },
+        { name: "Sliding Window (Variable)", type: "pattern", priority: "Must-Know", week: 1, problems: 18,
+          def: "Dynamically expands and shrinks a window based on constraints.",
+          triggers: ["Longest substring","Shortest subarray","At most K","Repeating chars"],
+          mistake: "Not properly resetting frequency maps when the left pointer moves." },
+        { name: "Linked List Reversal", type: "pattern", priority: "Important", week: 4, problems: 9,
+          def: "Reverses node directions in a linked list without auxiliary memory.",
+          triggers: ["Reverse list","Reverse sublist","K-group","Palindromic list"],
+          mistake: "Losing reference to the rest of the list when severing a node's forward pointer." }
+      ]
+    },
+    {
+      name: "Data Access / Query", type: "group", color: "#34d399",
+      children: [
+        { name: "Prefix Sum", type: "pattern", priority: "Important", week: 1, problems: 11,
+          def: "Precomputes cumulative sums for O(1) range queries on static arrays.",
+          triggers: ["Range sum query","Subarray sum = K","Continuous subarray","2D sum"],
+          mistake: "Forgetting to initialize the hash map with {0:1} for subarrays starting at index 0." },
+        { name: "Binary Search", type: "pattern", priority: "Must-Know", week: 2, problems: 18,
+          def: "Repeatedly halves a sorted search space or optimal value range.",
+          triggers: ["Sorted array","Peak element","Min time to process","Answer space"],
+          mistake: "Integer overflow when using (low + high) / 2 instead of low + (high-low)/2." },
+        { name: "Monotonic Stack", type: "pattern", priority: "Must-Know", week: 3, problems: 13,
+          def: "Maintains stack in sorted order to find next/previous greater or smaller values.",
+          triggers: ["Next greater element","Daily temperatures","Visible people","Largest rectangle"],
+          mistake: "Choosing wrong sort order (e.g., strictly increasing when non-decreasing needed)." },
+        { name: "Monotonic Queue", type: "pattern", priority: "Important", week: 3, problems: 9,
+          def: "Deque maintaining sorted order for sliding window extrema in constant time.",
+          triggers: ["Sliding window max","Jump game","Absolute diff limit","Max value equation"],
+          mistake: "Failing to remove elements from front that have exited the current window." },
+        { name: "Segment Tree", type: "pattern", priority: "Important", week: 9, problems: 12,
+          def: "Binary tree supporting dynamic range queries and updates in O(log N).",
+          triggers: ["Range sum/min query","Point updates","Range updates","Interval sum"],
+          mistake: "Not using lazy propagation for range-wide updates causes O(N log N) worst case." },
+        { name: "Fenwick Tree (BIT)", type: "pattern", priority: "Advanced", week: 10, problems: 9,
+          def: "Space-efficient array structure for dynamic prefix sums and point updates.",
+          triggers: ["Point update range sum","Inversion counting","Dynamic frequency"],
+          mistake: "Using 0-indexing — BIT requires 1-indexed arrays for bitwise logic to work." },
+        { name: "Sqrt Decomposition", type: "pattern", priority: "Skip", week: 0, problems: 5,
+          def: "Divides data into √N blocks for range queries, better than brute force.",
+          triggers: ["Range queries","Point updates","Block size √N"],
+          mistake: "Recomputing the entire block state during a single element update." }
+      ]
+    },
+    {
+      name: "Problem Solving Strategy", type: "group", color: "#fbbf24",
+      children: [
+        { name: "Greedy", type: "pattern", priority: "Important", week: 8, problems: 13,
+          def: "Makes locally optimal choices at each stage aiming for global optimum.",
+          triggers: ["Maximum profit","Interval scheduling","Min coins","Locally optimal"],
+          mistake: "Applying greedy to problems requiring DP due to overlapping subproblems." },
+        { name: "Dynamic Programming", type: "pattern", priority: "Must-Know", week: 7, problems: 35,
+          def: "Solves problems by breaking into overlapping subproblems and caching results.",
+          triggers: ["Overlapping subproblems","Count ways","Max/min result","Optimal substructure"],
+          mistake: "Failing to define a clear state transition equation and base cases." },
+        { name: "Backtracking", type: "pattern", priority: "Important", week: 5, problems: 17,
+          def: "Explores all candidate solutions and undoes choices to try new paths.",
+          triggers: ["Generate all","Permutations","Combinations","Sudoku","N-Queens"],
+          mistake: "Forgetting to undo/revert the state change after a recursive call returns." },
+        { name: "Meet in the Middle", type: "pattern", priority: "Advanced", week: 10, problems: 6,
+          def: "Splits search space in half, searches both sides, then combines results.",
+          triggers: ["N ≈ 40","Subset sum","Search space halved","Exponential speedup"],
+          mistake: "Failing to sort or binary search intermediate results, nullifying the speedup." },
+        { name: "Bit Manipulation", type: "pattern", priority: "Important", week: 9, problems: 12,
+          def: "Operates at bit level for logic and counting problems with high efficiency.",
+          triggers: ["XOR property","Number of 1 bits","Bitmask","Power of two"],
+          mistake: "Assuming 1 << k works for k ≥ 31 in 32-bit signed integer languages." }
+      ]
+    },
+    {
+      name: "Graph / Tree", type: "group", color: "#f87171",
+      children: [
+        { name: "Union-Find (DSU)", type: "pattern", priority: "Must-Know", week: 6, problems: 11,
+          def: "Merges disjoint sets to track connectivity and cycles efficiently.",
+          triggers: ["Connected components","Merging sets","Redundant connection","Kruskal's"],
+          mistake: "Neglecting path compression, which degrades operations to linear time." },
+        { name: "Topological Sort", type: "pattern", priority: "Must-Know", week: 5, problems: 11,
+          def: "Orders DAG nodes so every edge u→v places u before v.",
+          triggers: ["Course prerequisites","Build order","Task dependencies","DAG"],
+          mistake: "Attempting to sort a graph containing a cycle → results in incomplete ordering." },
+        { name: "Successor Graphs", type: "pattern", priority: "Skip", week: 0, problems: 4,
+          def: "Functional graph where each node has exactly one outgoing edge.",
+          triggers: ["Functional graph","Unique successor","Cycle detection","Walk K steps"],
+          mistake: "Forgetting that every component in a successor graph contains exactly one cycle." },
+        { name: "Max Flow / Min Cut", type: "pattern", priority: "Skip", week: 0, problems: 4,
+          def: "Finds max throughput source-to-sink constrained by edge capacities.",
+          triggers: ["Edge capacity","Source and sink","Bipartite matching","Ford-Fulkerson"],
+          mistake: "Not updating residual capacity in both forward and backward directions." },
+        { name: "SCC (Kosaraju's)", type: "pattern", priority: "Advanced", week: 6, problems: 6,
+          def: "Identifies maximal subsets where every node is reachable from every other.",
+          triggers: ["Reachability","Directed cycles","Condensation graph","Kosaraju's"],
+          mistake: "Confusing SCCs with connected components in undirected graphs." }
+      ]
+    },
+    {
+      name: "String / Geometric", type: "group", color: "#c084fc",
+      children: [
+        { name: "String Hashing", type: "pattern", priority: "Advanced", week: 10, problems: 9,
+          def: "Maps strings to integers for constant-time comparisons.",
+          triggers: ["Substring matching","Rabin-Karp","Minimal rotation","Duplicate substrings"],
+          mistake: "Using a small modulus B, which drastically increases collision likelihood." },
+        { name: "Trie (Prefix Tree)", type: "pattern", priority: "Must-Know", week: 9, problems: 9,
+          def: "Rooted tree where each node represents a character for efficient string storage.",
+          triggers: ["Prefix search","Word dictionary","Word search","Autocomplete"],
+          mistake: "High memory usage from creating pointers for all characters at every node." },
+        { name: "Sweep Line", type: "pattern", priority: "Advanced", week: 10, problems: 6,
+          def: "Processes geometric objects/events in sorted order across a coordinate plane.",
+          triggers: ["Intersection points","Overlapping intervals","Closest pair","Skyline"],
+          mistake: "Not handling coincident events at the same coordinate as simultaneous." },
+        { name: "Z-Algo / Suffix Array", type: "pattern", priority: "Skip", week: 0, problems: 4,
+          def: "O(N+M) pattern matching (Z) and lexicographic suffix ordering.",
+          triggers: ["Distinct substrings","LCP array","Border search","Suffix ordering"],
+          mistake: "Forgetting to append a unique separator between pattern and text for Z-matching." }
+      ]
+    }
+  ]
+};
+
+// ─── Panel logic ──────────────────────────────────────────────────────────────
+const priorityColors = { "Must-Know": "#34d399", "Important": "#60a5fa", "Advanced": "#fbbf24", "Skip": "#6b7280" };
+
+let selectedNode = null;
+
+function openPanel(d) {
+  const p = d.data;
+  const pc = priorityColors[p.priority] || "#94a3b8";
+  document.getElementById("panel-pattern-name").textContent = p.name;
+  document.getElementById("panel-def").textContent = p.def;
+  const pri = document.getElementById("panel-priority");
+  pri.textContent = p.priority;
+  pri.style.background = pc + "22";
+  pri.style.color = pc;
+  pri.style.border = `1px solid ${pc}44`;
+  document.getElementById("panel-week").textContent =
+    p.week ? `Week ${p.week} · ~${p.problems} problems` : "Skip / Optional";
+
+  // Triggers
+  document.getElementById("panel-triggers").innerHTML =
+    (p.triggers || []).map(t => `<span class="trigger-pill">${t}</span>`).join("");
+
+  // Problems
+  const problems = lcData[p.name] || [];
+  document.getElementById("panel-problems").innerHTML = problems.length
+    ? problems.map(pr => {
+        const dc = pr.diff === "Easy" ? "diff-easy" : pr.diff === "Medium" ? "diff-medium" : "diff-hard";
+        const slug = pr.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+        return `<a class="lc-problem" href="https://leetcode.com/problems/${slug}/" target="_blank" rel="noopener noreferrer">
+          <span class="lc-num">#${pr.num}</span>
+          <span class="lc-name">${pr.name}</span>
+          <span class="lc-diff ${dc}">${pr.diff}</span>
+        </a>`;
+      }).join("")
+    : `<div style="color:#6b7280;font-size:12px;padding:8px 0">No problems mapped yet.</div>`;
+
+  // Mistake
+  document.getElementById("panel-mistake").innerHTML =
+    `<span>⚠ Common Mistake</span>${p.mistake}`;
+
+  document.getElementById("side-panel").classList.add("open");
+  document.getElementById("panel-hint").style.display = "none";
+}
+
+function closePanel() {
+  document.getElementById("side-panel").classList.remove("open");
+  if (selectedNode) {
+    d3.select(selectedNode).classed("selected", false);
+    selectedNode = null;
+  }
+  setTimeout(() => { document.getElementById("panel-hint").style.display = "block"; }, 400);
+}
+
+// ─── D3 mind map ──────────────────────────────────────────────────────────────
+const w = window.innerWidth, h = window.innerHeight;
+const svgEl = document.getElementById("svg");
+const svg = d3.select("#svg").attr("width", w).attr("height", h);
+const g = svg.append("g");
+
+const zoomBehavior = d3.zoom().scaleExtent([0.2, 3]).on("zoom", e =>
+  g.attr("transform", `translate(${w/2},${h/2}) ${e.transform}`)
+);
+svg.call(zoomBehavior);
+
+const tree = d3.tree().size([2 * Math.PI, Math.min(w, h) * 0.38])
+  .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
+
+const root = d3.hierarchy(data);
+root.x0 = 0; root.y0 = 0;
+
+function getColor(d) {
+  if (d.data.type === "root") return "#e2e8f0";
+  if (d.data.type === "group") return d.data.color;
+  let p = d;
+  while (p.parent && p.parent.data.type !== "root") p = p.parent;
+  return p.data.color || "#94a3b8";
+}
+
+let i = 0;
+function update(source) {
+  const treeData = tree(root);
+  const nodes = treeData.descendants();
+  const links = treeData.links();
+  nodes.forEach(d => d.y = d.depth * (d.depth === 1 ? 160 : d.depth === 2 ? 260 : 120));
+
+  const node = g.selectAll("g.node").data(nodes, d => d.id || (d.id = ++i));
+
+  const nodeEnter = node.enter().append("g").attr("class", "node")
+    .attr("transform", () => `translate(${radialPoint(source.x0 || 0, source.y0 || 0)})`)
+    .on("click", (event, d) => {
+      event.stopPropagation();
+      if (d.data.type === "pattern") {
+        // Select node highlight
+        g.selectAll("g.node").classed("selected", false);
+        d3.select(event.currentTarget).classed("selected", true);
+        selectedNode = event.currentTarget;
+        openPanel(d);
+      } else {
+        if (d.children) { d._children = d.children; d.children = null; }
+        else if (d._children) { d.children = d._children; d._children = null; }
+        update(d);
+      }
+    })
+    .on("mousemove", (event, d) => {
+      if (d.data.type !== "pattern") return;
+      const tt = document.getElementById("tooltip");
+      tt.innerHTML = `<h3>${d.data.name}</h3><div class="tip-def">${d.data.def}</div><div class="tip-hint">Click to view ${(lcData[d.data.name]||[]).length} LeetCode problems →</div>`;
+      tt.style.display = "block";
+      tt.style.left = Math.min(event.clientX + 16, window.innerWidth - 280) + "px";
+      tt.style.top = Math.min(event.clientY - 10, window.innerHeight - 120) + "px";
+    })
+    .on("mouseleave", () => { document.getElementById("tooltip").style.display = "none"; });
+
+  nodeEnter.append("circle")
+    .attr("r", d => d.data.type === "root" ? 22 : d.data.type === "group" ? 14 : 8)
+    .attr("fill", d => d.data.type === "pattern" ? (priorityColors[d.data.priority] || "#6b7280") : getColor(d))
+    .attr("stroke", d => getColor(d))
+    .attr("stroke-width", 2)
+    .attr("fill-opacity", d => d.data.type === "pattern" ? 0.25 : 0.15);
+
+  nodeEnter.append("text")
+    .attr("dy", "0.31em")
+    .attr("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end")
+    .attr("font-size", d => d.data.type === "root" ? "15px" : d.data.type === "group" ? "13px" : "11px")
+    .attr("font-weight", d => d.data.type !== "pattern" ? "700" : "400")
+    .attr("fill", d => getColor(d))
+    .text(d => d.data.name);
+
+  const nodeUpdate = nodeEnter.merge(node);
+  nodeUpdate.transition().duration(500)
+    .attr("transform", d => `translate(${radialPoint(d.x, d.y)})`);
+
+  nodeUpdate.select("text")
+    .attr("x", d => (d.x < Math.PI) === !d.children ? 14 : -14)
+    .attr("text-anchor", d => (d.x < Math.PI) === !d.children ? "start" : "end")
+    .attr("transform", null);
+
+  node.exit().transition().duration(500)
+    .attr("transform", `translate(${radialPoint(source.x, source.y)})`).remove();
+
+  const link = g.selectAll("path.link").data(links, d => d.target.id);
+
+  const linkEnter = link.enter().insert("path", "g")
+    .attr("class", "link")
+    .attr("stroke", d => getColor(d.target))
+    .attr("d", () => {
+      const o = radialPoint(source.x0 || 0, source.y0 || 0);
+      return `M${o}A0,0 0 0,1 ${o}L${o}`;
+    });
+
+  linkEnter.merge(link).transition().duration(500)
+    .attr("d", d => {
+      const s = radialPoint(d.source.x, d.source.y);
+      const t = radialPoint(d.target.x, d.target.y);
+      const mx = (s[0] + t[0]) / 2;
+      const my = (s[1] + t[1]) / 2;
+      return `M${s[0]},${s[1]} Q${mx},${my} ${t[0]},${t[1]}`;
+    });
+
+  link.exit().transition().duration(500)
+    .attr("d", () => {
+      const o = radialPoint(source.x, source.y);
+      return `M${o}A0,0 0 0,1 ${o}L${o}`;
+    }).remove();
+
+  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+}
+
+function radialPoint(x, y) {
+  return [(y = +y) * Math.cos(x -= Math.PI / 2), y * Math.sin(x)];
+}
+
+g.attr("transform", `translate(${w/2},${h/2})`);
+update(root);
+
+function resetZoom() {
+  svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity);
+}
+function expandAll() {
+  root.descendants().forEach(d => { if (d._children) { d.children = d._children; d._children = null; } });
+  update(root);
+}
+function collapseAll() {
+  root.children.forEach(d => { if (d.children) { d._children = d.children; d.children = null; } });
+  update(root);
+}
+
+// Close panel on background click
+svg.on("click", () => closePanel());
+</script>
+</body>
+</html>
